@@ -27,6 +27,7 @@ import * as BrowserSession from "../BrowserSession.ts";
 import { ChromiumCookieReadError, readChromiumCookies } from "./ChromiumCookies.ts";
 import type { CookieReadResult } from "./CookieDatabase.ts";
 import { FirefoxCookieReadError, readFirefoxCookies } from "./FirefoxCookies.ts";
+import { readSafariCookies, SafariCookieReadError } from "./SafariCookies.ts";
 import {
   BROWSER_IMPORT_SOURCES,
   cookieDatabasePath,
@@ -228,20 +229,24 @@ export const make = Effect.gen(function* BrowserImportMake() {
     // engine — Firefox stores plaintext, so nothing there is ever unreadable.
     const read: Effect.Effect<
       CookieReadResult,
-      ChromiumCookieReadError | FirefoxCookieReadError,
+      ChromiumCookieReadError | FirefoxCookieReadError | SafariCookieReadError,
       FileSystem.FileSystem | Path.Path | Scope.Scope | ChildProcessSpawner.ChildProcessSpawner
     > =
-      definition.engine === "firefox"
-        ? readFirefoxCookies(databasePath).pipe(
+      definition.engine === "safari"
+        ? readSafariCookies(databasePath).pipe(
             Effect.map((cookies) => ({ cookies, undecryptable: 0, undecryptableHosts: [] })),
           )
-        : readChromiumCookies({
-            cookieDatabasePath: databasePath,
-            keychainService: definition.keychainService,
-            keychainAccount: definition.keychainAccount,
-            linuxSecretApplication: definition.linuxSecretApplication,
-            platform,
-          });
+        : definition.engine === "firefox"
+          ? readFirefoxCookies(databasePath).pipe(
+              Effect.map((cookies) => ({ cookies, undecryptable: 0, undecryptableHosts: [] })),
+            )
+          : readChromiumCookies({
+              cookieDatabasePath: databasePath,
+               keychainService: definition.keychainService,
+               keychainAccount: definition.keychainAccount,
+               linuxSecretApplication: definition.linuxSecretApplication,
+               platform,
+             });
 
     const result = yield* read.pipe(
       Effect.scoped,
