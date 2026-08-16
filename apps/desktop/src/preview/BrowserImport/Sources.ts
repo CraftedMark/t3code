@@ -446,6 +446,7 @@ export const chromiumSingletonLockIsHeld = Effect.fnUntraced(function* (
   return yield* isProcessAlive(pid);
 });
 
+const FIREFOX_LOCK_NAMES = ["lock", ".parentlock", "parent.lock"] as const;
 /** Whether the browser is running, which leaves its cookie DB mid-write. */
 export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")(function* (
   definition: BrowserImportSourceDefinition,
@@ -454,29 +455,34 @@ export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")
   const fileSystem = yield* FileSystem.FileSystem;
   const root = definition.userDataDirectory(context);
   if (root === undefined) return false;
-  if (definition.engine === "firefox") {
-    const found = yield* Effect.forEach(["lock", "parent.lock"], (lock) =>
-      entryExists(context.path.join(root, lock)),
-    );
-    return found.some(Boolean);
-  }
-  const lock = context.path.join(root, "SingletonLock");
-  // Chromium writes a `SingletonLock` symlink for as long as an instance holds
-  // the profile. Its presence is a far cheaper and more targeted signal than
-  // scanning the process table for a name.
+  // Both engines leave a lock file for as long as an instance holds a profile,
+  // which is far cheaper and more targeted than scanning the process table.
   //
-  // The link points at `<host>-<pid>`, a target that never exists, and both
-  // `stat` and `exists` follow links — so they report every running browser as
-  // closed, which would let an import read a live, mid-write database.
-  // `readLink` is the one probe that answers for the entry itself. Chromium
-  // can leave this link behind after a crash, so a positively dead local PID
-  // is stale. Every ambiguous target or liveness result stays conservative.
-  return yield* fileSystem.readLink(lock).pipe(
-    Effect.flatMap((target) =>
-      chromiumSingletonLockIsHeld(target, NodeOS.hostname(), processIsAlive),
-    ),
-    Effect.catch((error) => Effect.succeed(error.reason._tag !== "NotFound")),
-  );
+  // They differ in where: Chromium keeps one `SingletonLock` for the whole
+  // user-data directory, Firefox keeps its locks inside each profile, under
+  // three names across platforms (`lock` on macOS and Linux, `.parentlock`
+  // beside it, `parent.lock` on Windows). Looking for Firefox's at the root
+  // finds nothing and reports a running browser as importable.
+  if (definition.engine !== "firefox") {
+    const lock = context.path.join(root, "SingletonLock");
+    return yield* fileSystem.readLink(lock).pipe(
+      Effect.flatMap((target) =>
+        chromiumSingletonLockIsHeld(target, NodeOS.hostname(), processIsAlive),
+      ),
+      Effect.catch((error) => Effect.succeed(error.reason._tag !== "NotFound")),
+    );
+  }
+
+  const profiles = yield* listSourceProfiles(definition, context);
+  const found = yield* Effect.forEach(profiles, (profile) => {
+    const directory = context.path.isAbsolute(profile.directory)
+      ? profile.directory
+      : context.path.join(root, profile.directory);
+    return Effect.forEach(FIREFOX_LOCK_NAMES, (lock) =>
+      entryExists(context.path.join(directory, lock)),
+    ).pipe(Effect.map((results) => results.some(Boolean)));
+  });
+  return found.some(Boolean);
 });
 
 /**
