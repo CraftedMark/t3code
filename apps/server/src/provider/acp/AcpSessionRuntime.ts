@@ -76,7 +76,11 @@ export interface AcpSessionRuntimeOptions {
     readonly name: string;
     readonly version: string;
   };
-  readonly authMethodId: string;
+  /**
+   * Auth method to present after `initialize`. Leave unset for agents that
+   * advertise no auth methods; see the skip in `startOnce`.
+   */
+  readonly authMethodId?: string | undefined;
   readonly mcpServers?: ReadonlyArray<EffectAcpSchema.McpServer>;
   readonly requestLogger?: (event: AcpSessionRequestLogEvent) => Effect.Effect<void, never>;
   readonly protocolLogging?: {
@@ -550,15 +554,21 @@ export const make = (
         acp.agent.initialize(initializePayload),
       );
 
-      const authenticatePayload = {
-        methodId: options.authMethodId,
-      } satisfies EffectAcpSchema.AuthenticateRequest;
+      // Only authenticate when we have a method id and the agent actually
+      // advertises auth methods. prime-agent 0.8.0 advertises none and answers
+      // `authenticate` with JSON-RPC -32601 Method not found.
+      const authMethodId = options.authMethodId;
+      if (authMethodId && (initializeResult.authMethods?.length ?? 0) > 0) {
+        const authenticatePayload = {
+          methodId: authMethodId,
+        } satisfies EffectAcpSchema.AuthenticateRequest;
 
-      yield* runLoggedRequest(
-        "authenticate",
-        authenticatePayload,
-        acp.agent.authenticate(authenticatePayload),
-      );
+        yield* runLoggedRequest(
+          "authenticate",
+          authenticatePayload,
+          acp.agent.authenticate(authenticatePayload),
+        );
+      }
 
       let sessionId: string;
       let sessionSetupResult:

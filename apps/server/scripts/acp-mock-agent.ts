@@ -14,6 +14,9 @@ import type * as AcpSchema from "effect-acp/schema";
 const requestLogPath = process.env.T3_ACP_REQUEST_LOG_PATH;
 const exitLogPath = process.env.T3_ACP_EXIT_LOG_PATH;
 const emitToolCalls = process.env.T3_ACP_EMIT_TOOL_CALLS === "1";
+// Emits a Pi-shaped `model` + `thought_level` config option pair from
+// `session/new`, which is what the generic ACP agent model probe reads.
+const emitModelConfigOptions = process.env.T3_ACP_MODEL_CONFIG_OPTIONS === "1";
 const emitInterleavedAssistantToolCalls =
   process.env.T3_ACP_EMIT_INTERLEAVED_ASSISTANT_TOOL_CALLS === "1";
 const emitGenericToolPlaceholders = process.env.T3_ACP_EMIT_GENERIC_TOOL_PLACEHOLDERS === "1";
@@ -34,6 +37,8 @@ const hangFirstPromptForever = process.env.T3_ACP_HANG_FIRST_PROMPT_FOREVER === 
 const emitLateUpdateAfterCancel = process.env.T3_ACP_EMIT_LATE_UPDATE_AFTER_CANCEL === "1";
 const omitXAiPromptCompleteStopReason =
   process.env.T3_ACP_OMIT_XAI_PROMPT_COMPLETE_STOP_REASON === "1";
+// Agents like prime-agent advertise no auth methods and reject `authenticate`.
+const omitAuthMethods = process.env.T3_ACP_OMIT_AUTH_METHODS === "1";
 const failLoadSession = process.env.T3_ACP_FAIL_LOAD_SESSION === "1";
 const emitLoadReplay = process.env.T3_ACP_EMIT_LOAD_REPLAY === "1";
 const hangLoadSessionAfterReplay = process.env.T3_ACP_HANG_LOAD_SESSION_AFTER_REPLAY === "1";
@@ -109,6 +114,34 @@ process.once("exit", (code) => {
 });
 
 function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
+  if (emitModelConfigOptions) {
+    return [
+      {
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select" as const,
+        currentValue: "anthropic/claude-sonnet-5",
+        options: [
+          { value: "anthropic/claude-fable-5", name: "anthropic/Claude Fable 5" },
+          { value: "anthropic/claude-sonnet-5", name: "anthropic/Claude Sonnet 5" },
+        ],
+      },
+      {
+        id: "thought_level",
+        name: "Thinking",
+        category: "thought_level",
+        type: "select" as const,
+        currentValue: "medium",
+        options: [
+          { value: "off", name: "Thinking: off" },
+          { value: "medium", name: "Thinking: medium" },
+          { value: "high", name: "Thinking: high" },
+        ],
+      },
+    ];
+  }
+
   if (parameterizedModelPicker) {
     const baseOptions: Array<AcpSchema.SessionConfigOption> = [
       {
@@ -324,6 +357,7 @@ const program = Effect.gen(function* () {
       return {
         protocolVersion: 1,
         agentCapabilities: { loadSession: true },
+        ...(omitAuthMethods ? {} : { authMethods: [{ id: "mock-login", name: "Mock Login" }] }),
       };
     }),
   );

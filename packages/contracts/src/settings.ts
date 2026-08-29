@@ -568,6 +568,82 @@ export const OpenCodeSettings = makeProviderSettingsSchema(
 );
 export type OpenCodeSettings = typeof OpenCodeSettings.Type;
 
+export const PiSettings = makeProviderSettingsSchema(
+  {
+    // Off by default like the other opt-in bindings: the `pi-acp` bridge is
+    // an extra install, so probing it on every machine would be noise.
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("pi-acp").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description:
+          "Path to the pi-acp bridge binary (npm `pi-acp`). It launches `pi --mode rpc`.",
+        providerSettingsForm: { placeholder: "pi-acp", clearWhenEmpty: "omit" },
+      }),
+    ),
+    customModels: Schema.Array(Schema.String).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  {
+    order: ["binaryPath"],
+  },
+);
+export type PiSettings = typeof PiSettings.Type;
+
+/** Reasoning efforts `prime-agent` accepts for its `--thinking` spawn argument. */
+export const PrimeThinkingLevel = Schema.Literals([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+export type PrimeThinkingLevel = typeof PrimeThinkingLevel.Type;
+
+export const PrimeSettings = makeProviderSettingsSchema(
+  {
+    // Off by default like the other opt-in bindings: `prime-agent` is an
+    // extra install, so probing it on every machine would be noise.
+    enabled: Schema.Boolean.pipe(
+      Schema.withDecodingDefault(Effect.succeed(false)),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    binaryPath: makeBinaryPathSetting("prime-agent").pipe(
+      Schema.annotateKey({
+        title: "Binary path",
+        description: "Path to the Prime Agent binary.",
+        providerSettingsForm: { placeholder: "prime-agent", clearWhenEmpty: "omit" },
+      }),
+    ),
+    // The settings form has no select control, so this renders as a text
+    // field; the schema is what rejects anything outside the union.
+    defaultThinking: PrimeThinkingLevel.pipe(
+      Schema.withDecodingDefault(Effect.succeed("medium" as const)),
+      Schema.annotateKey({
+        title: "Default thinking level",
+        description:
+          "Reasoning effort passed to prime-agent (--thinking) when a model does not specify one.",
+        providerSettingsForm: { placeholder: "medium" },
+      }),
+    ),
+    customModels: Schema.Array(Schema.String).pipe(
+      Schema.withDecodingDefault(Effect.succeed([])),
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+  },
+  {
+    order: ["binaryPath", "defaultThinking"],
+  },
+);
+export type PrimeSettings = typeof PrimeSettings.Type;
+
 export const ObservabilitySettings = Schema.Struct({
   otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   otlpMetricsUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -725,6 +801,8 @@ export const ServerSettings = Schema.Struct({
     cursor: CursorSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     grok: GrokSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
     opencode: OpenCodeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    pi: PiSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+    prime: PrimeSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   // New driver-agnostic instance map. Keyed by `ProviderInstanceId`; values
   // are `ProviderInstanceConfig` envelopes. The driver-specific config blob
@@ -878,6 +956,21 @@ const OpenCodeSettingsPatch = Schema.Struct({
   customModels: Schema.optionalKey(Schema.Array(Schema.String)),
 });
 
+const PiSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+
+const PrimeSettingsPatch = Schema.Struct({
+  enabled: Schema.optionalKey(Schema.Boolean),
+  binaryPath: Schema.optionalKey(TrimmedString),
+  // Validated at the patch boundary so a typo fails the one update with a
+  // schema error instead of a generic whole-settings failure.
+  defaultThinking: Schema.optionalKey(PrimeThinkingLevel),
+  customModels: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+
 export const ServerSettingsPatch = Schema.Struct({
   // Server settings
   enableLegacyTokenStreaming: Schema.optionalKey(Schema.Boolean),
@@ -921,6 +1014,8 @@ export const ServerSettingsPatch = Schema.Struct({
       cursor: Schema.optionalKey(CursorSettingsPatch),
       grok: Schema.optionalKey(GrokSettingsPatch),
       opencode: Schema.optionalKey(OpenCodeSettingsPatch),
+      pi: Schema.optionalKey(PiSettingsPatch),
+      prime: Schema.optionalKey(PrimeSettingsPatch),
     }),
   ),
   // Whole-map replacement for the new instance config. Patching individual
