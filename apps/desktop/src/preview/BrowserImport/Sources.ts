@@ -286,6 +286,15 @@ const entryExists = Effect.fnUntraced(function* (path: string) {
   );
 });
 
+/** Whether a path resolves to an existing file or directory. */
+const targetExists = Effect.fnUntraced(function* (path: string) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  return yield* fileSystem.stat(path).pipe(
+    Effect.as(true),
+    Effect.orElseSucceed(() => false),
+  );
+});
+
 /** Shape of the slice of Chromium's `Local State` that names its profiles. */
 const LocalState = Schema.Struct({
   profile: Schema.optional(
@@ -386,7 +395,7 @@ export const listSourceProfiles = Effect.fn("BrowserImportSources.listSourceProf
       const database = cookieDatabasePath(definition, context, directory);
       return database === undefined
         ? Effect.succeed(undefined)
-        : entryExists(database).pipe(
+        : targetExists(database).pipe(
             Effect.map((exists) => (exists ? { directory, name: entry } : undefined)),
           );
     });
@@ -419,7 +428,7 @@ export const listSourceProfiles = Effect.fn("BrowserImportSources.listSourceProf
     .readDirectory(root)
     .pipe(Effect.orElseSucceed(() => [] as ReadonlyArray<string>));
   const found = yield* Effect.forEach(entries.filter(isSafeProfileDirectory), (directory) =>
-    entryExists(cookieDatabasePath(definition, context, directory) ?? "").pipe(
+    targetExists(cookieDatabasePath(definition, context, directory) ?? "").pipe(
       Effect.map((exists) => (exists ? { directory, name: directory } : undefined)),
     ),
   );
@@ -536,7 +545,7 @@ export const isSourceInstalled = Effect.fn("BrowserImportSources.isSourceInstall
   const profiles = yield* listSourceProfiles(definition, context);
   const found = yield* Effect.forEach(profiles, (profile) => {
     const database = cookieDatabasePath(definition, context, profile.directory);
-    return database === undefined ? Effect.succeed(false) : entryExists(database);
+    return database === undefined ? Effect.succeed(false) : targetExists(database);
   });
   return found.some(Boolean);
 });
