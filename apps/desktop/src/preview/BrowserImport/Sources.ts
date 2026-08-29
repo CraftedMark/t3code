@@ -430,21 +430,6 @@ export const listSourceProfiles = Effect.fn("BrowserImportSources.listSourceProf
   );
 });
 
-/**
- * Whether a directory entry exists, without following it or opening it.
- *
- * `stat` resolves symlinks and the locks below deliberately dangle, so
- * `readLink` is the probe that answers for the entry itself.
- */
-const entryExists = Effect.fnUntraced(function* (path: string) {
-  const fileSystem = yield* FileSystem.FileSystem;
-  return yield* fileSystem.stat(path).pipe(
-    Effect.catch(() => fileSystem.readLink(path)),
-    Effect.as(true),
-    Effect.orElseSucceed(() => false),
-  );
-});
-
 type ProcessLivenessProbe = (pid: number) => Effect.Effect<boolean>;
 
 export const chromiumProcessIsAlive = (
