@@ -109,6 +109,7 @@ describe("outcomeToStep", () => {
     expect(outcomeToStep({ kind: "blocked", reason: "needsFullDiskAccess" })).toEqual({
       step: "fullDiskAccess",
       resume: "import",
+      checked: true,
     });
   });
 
