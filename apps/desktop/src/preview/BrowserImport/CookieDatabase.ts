@@ -62,8 +62,7 @@ export const cookieScope = (
   const isDomainCookie = host.startsWith(".");
   const unwrappedHost = bareHost(host);
   const authority =
-    unwrappedHost.includes(":") &&
-    !(unwrappedHost.startsWith("[") && unwrappedHost.endsWith("]"))
+    unwrappedHost.includes(":") && !(unwrappedHost.startsWith("[") && unwrappedHost.endsWith("]"))
       ? `[${unwrappedHost}]`
       : unwrappedHost;
   return {
