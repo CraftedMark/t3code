@@ -8,6 +8,8 @@ import {
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
   defaultEnabledForDriver,
+  PiSettings,
+  PrimeSettings,
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
@@ -19,6 +21,8 @@ const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
+const decodePiSettings = Schema.decodeUnknownSync(PiSettings);
+const decodePrimeSettings = Schema.decodeUnknownSync(PrimeSettings);
 
 describe("ClaudeSettings auto-compaction", () => {
   it("uses Claude's default threshold when no override is configured", () => {
@@ -240,12 +244,16 @@ describe("provider enabled defaults", () => {
     expect(decoded.providers.cursor.enabled).toBe(false);
     expect(decoded.providers.grok.enabled).toBe(false);
     expect(decoded.providers.opencode.enabled).toBe(false);
+    expect(decoded.providers.pi.enabled).toBe(false);
+    expect(decoded.providers.prime.enabled).toBe(false);
   });
 
   it("derives per-driver defaults from the settings schemas", () => {
     expect(defaultEnabledForDriver(ProviderDriverKind.make("codex"))).toBe(true);
     expect(defaultEnabledForDriver(ProviderDriverKind.make("cursor"))).toBe(false);
     expect(defaultEnabledForDriver(ProviderDriverKind.make("grok"))).toBe(false);
+    expect(defaultEnabledForDriver(ProviderDriverKind.make("pi"))).toBe(false);
+    expect(defaultEnabledForDriver(ProviderDriverKind.make("prime"))).toBe(false);
     // Unknown fork drivers stay enabled; their own build decides otherwise.
     expect(defaultEnabledForDriver(ProviderDriverKind.make("ollama"))).toBe(true);
   });
@@ -284,6 +292,53 @@ describe("provider enabled defaults", () => {
     expect(
       resolveProviderInstanceEnabled({ driver: codex, enabled: false, config: { enabled: true } }),
     ).toBe(false);
+  });
+});
+
+describe("PiSettings and PrimeSettings", () => {
+  it("defaults to the bridge and agent binary names", () => {
+    expect(decodePiSettings({})).toEqual({
+      enabled: false,
+      binaryPath: "pi-acp",
+      customModels: [],
+    });
+    expect(decodePrimeSettings({})).toEqual({
+      enabled: false,
+      binaryPath: "prime-agent",
+      defaultThinking: "medium",
+      customModels: [],
+    });
+  });
+
+  it.each(["off", "minimal", "low", "medium", "high", "xhigh", "max"])(
+    "accepts a supported thinking level: %s",
+    (value) => {
+      expect(decodePrimeSettings({ defaultThinking: value }).defaultThinking).toBe(value);
+    },
+  );
+
+  it.each(["", "none", "ultra", "MEDIUM"])("rejects an unsupported thinking level: %s", (value) => {
+    expect(() => decodePrimeSettings({ defaultThinking: value })).toThrow();
+  });
+
+  it("accepts partial patches for both drivers", () => {
+    const patch = decodeServerSettingsPatch({
+      providers: {
+        pi: { enabled: true, binaryPath: "  ~/.bun/bin/pi-acp  " },
+        prime: { defaultThinking: "high" },
+      },
+    });
+
+    expect(patch.providers?.pi?.binaryPath).toBe("~/.bun/bin/pi-acp");
+    expect(patch.providers?.pi?.enabled).toBe(true);
+    expect(patch.providers?.prime?.defaultThinking).toBe("high");
+    expect(patch.providers?.prime?.binaryPath).toBeUndefined();
+  });
+
+  it("rejects an unsupported thinking level at the settings patch boundary", () => {
+    expect(() =>
+      decodeServerSettingsPatch({ providers: { prime: { defaultThinking: "ultra" } } }),
+    ).toThrow();
   });
 });
 
