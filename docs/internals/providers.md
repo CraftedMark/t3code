@@ -7,7 +7,7 @@ orchestration layer does not know which one is behind a thread.
 
 ## Built-in drivers
 
-[`builtInDrivers.ts`][drivers] exports `BUILT_IN_DRIVERS` with five entries:
+[`builtInDrivers.ts`][drivers] exports `BUILT_IN_DRIVERS` with seven entries:
 
 | Driver kind   | Driver source                           |
 | ------------- | --------------------------------------- |
@@ -16,12 +16,22 @@ orchestration layer does not know which one is behind a thread.
 | `cursor`      | [`Drivers/CursorDriver.ts`][cursor]     |
 | `grok`        | [`Drivers/GrokDriver.ts`][grok]         |
 | `opencode`    | [`Drivers/OpenCodeDriver.ts`][opencode] |
+| `pi`          | [`Drivers/PiDriver.ts`][pi]             |
+| `prime`       | [`Drivers/PrimeDriver.ts`][prime]       |
 
 Each driver declares its `driverKind`, a `configSchema`, and a `create` function that builds an
 adapter in a child scope. Adapter implementations live beside them in
 `apps/server/src/provider/Layers/` (`CodexAdapter.ts`, `ClaudeAdapter.ts`, and so on) and conform to
 [`ProviderAdapter.ts`][adapter]. Read the driver plus its adapter to see how a specific agent's
 transport, config, and event shapes are mapped.
+
+`pi` and `prime` (fork additions) do not own an adapter each. They describe the agent as an
+[`AcpAgentProfile`][acp-profile] — spawn command, auth method, client capabilities, model strategy
+(`configOption` for agents that expose an ACP `model` select, `spawnArgs` for agents that take the
+model on the command line), and a model-discovery function — and share the generic
+[`AcpAgentAdapter.ts`][acp-adapter] over the same `AcpSessionRuntime` that Cursor and Grok use. A
+new ACP-speaking agent is a profile plus two registrations, not a new adapter. See
+[`docs/fork/`](../fork/README.md) for prerequisites and verified agent behaviour.
 
 ## Registry and routing
 
@@ -165,6 +175,10 @@ when a request opens (approval) or user input is requested, via
 [cursor]: ../../apps/server/src/provider/Drivers/CursorDriver.ts
 [grok]: ../../apps/server/src/provider/Drivers/GrokDriver.ts
 [opencode]: ../../apps/server/src/provider/Drivers/OpenCodeDriver.ts
+[pi]: ../../apps/server/src/provider/Drivers/PiDriver.ts
+[prime]: ../../apps/server/src/provider/Drivers/PrimeDriver.ts
+[acp-profile]: ../../apps/server/src/provider/acp/AcpAgentProfile.ts
+[acp-adapter]: ../../apps/server/src/provider/Layers/AcpAgentAdapter.ts
 [opencode-server-owner]: ../../apps/server/src/provider/OpenCodeServerOwner.ts
 [adapter]: ../../apps/server/src/provider/Services/ProviderAdapter.ts
 [instances]: ../../apps/server/src/provider/Services/ProviderInstanceRegistry.ts
