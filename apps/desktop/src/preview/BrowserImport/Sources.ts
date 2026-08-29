@@ -8,11 +8,11 @@
  * keeps them in plain SQLite with no key at all, so it needs no keychain and
  * works the same on every platform.
  *
- * Each entry pins its own paths and keychain coordinates rather than deriving
- * them, because the forks do not agree. Helium uses the keychain service
- * "Helium Storage Key" / account "Helium" where Chrome and its closer
- * relatives use "<Name> Safe Storage" / "<Name>", and the user-data directory
- * differs per fork and per platform.
+ * Each entry pins its own paths and credential-store coordinates rather than
+ * deriving them, because the forks do not agree. macOS uses service/account
+ * pairs, while Linux Chromium uses a custom libsecret schema keyed by an
+ * `application` attribute. The user-data directory also differs per fork and
+ * per platform.
  *
  * @module BrowserImportSources
  */
@@ -53,6 +53,8 @@ export interface BrowserImportSourceDefinition {
   /** Chromium on macOS only: where the OSCrypt key lives in the keychain. */
   readonly keychainService?: string;
   readonly keychainAccount?: string;
+  /** Chromium's `application` attribute in the Linux libsecret schema. */
+  readonly linuxSecretApplication?: string;
 }
 
 const macApplicationSupport = (
@@ -73,6 +75,7 @@ const chromiumSource = (input: {
   readonly keychainAccount: string;
   readonly macSegments: ReadonlyArray<string>;
   readonly linuxSegments?: ReadonlyArray<string>;
+  readonly linuxSecretApplication?: string;
 }): BrowserImportSourceDefinition => ({
   id: input.id,
   name: input.name,
@@ -83,6 +86,9 @@ const chromiumSource = (input: {
   ],
   keychainService: input.keychainService,
   keychainAccount: input.keychainAccount,
+  ...(input.linuxSecretApplication === undefined
+    ? {}
+    : { linuxSecretApplication: input.linuxSecretApplication }),
   userDataDirectory: (context) => {
     if (context.platform === "darwin") return macApplicationSupport(context, ...input.macSegments);
     return input.linuxSegments
@@ -99,6 +105,7 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Chrome",
     macSegments: ["Google", "Chrome"],
     linuxSegments: ["google-chrome"],
+    linuxSecretApplication: "chrome",
   }),
   chromiumSource({
     id: "edge",
@@ -107,6 +114,7 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Microsoft Edge",
     macSegments: ["Microsoft Edge"],
     linuxSegments: ["microsoft-edge"],
+    linuxSecretApplication: "msedge",
   }),
   chromiumSource({
     id: "brave",
@@ -115,6 +123,7 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Brave",
     macSegments: ["BraveSoftware", "Brave-Browser"],
     linuxSegments: ["BraveSoftware", "Brave-Browser"],
+    linuxSecretApplication: "brave",
   }),
   chromiumSource({
     id: "vivaldi",
@@ -123,6 +132,7 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Vivaldi",
     macSegments: ["Vivaldi"],
     linuxSegments: ["vivaldi"],
+    linuxSecretApplication: "vivaldi",
   }),
   chromiumSource({
     id: "opera",
@@ -131,6 +141,7 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Opera",
     macSegments: ["com.operasoftware.Opera"],
     linuxSegments: ["opera"],
+    linuxSecretApplication: "opera",
   }),
   // Arc and Helium ship macOS-only builds.
   chromiumSource({

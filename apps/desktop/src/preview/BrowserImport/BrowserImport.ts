@@ -19,6 +19,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import { ChildProcessSpawner } from "effect/unstable/process";
 
 import { HostProcessExecutablePath, HostProcessPlatform } from "@t3tools/shared/hostProcess";
 
@@ -144,7 +145,9 @@ export const make = Effect.gen(function* BrowserImportMake() {
   const executablePath = yield* HostProcessExecutablePath;
   // Captured here so the service's methods stay free of a requirements
   // channel: the layer is built where NodeServices is already in scope.
-  const platformServices = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
+  const platformServices = yield* Effect.context<
+    FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
+  >();
   const pathContext = yield* sourcePathContext;
 
   const listSources: Effect.Effect<ReadonlyArray<BrowserImportSource>> = Effect.forEach(
@@ -226,7 +229,7 @@ export const make = Effect.gen(function* BrowserImportMake() {
     const read: Effect.Effect<
       CookieReadResult,
       ChromiumCookieReadError | FirefoxCookieReadError,
-      FileSystem.FileSystem | Path.Path | Scope.Scope
+      FileSystem.FileSystem | Path.Path | Scope.Scope | ChildProcessSpawner.ChildProcessSpawner
     > =
       definition.engine === "firefox"
         ? readFirefoxCookies(databasePath).pipe(
@@ -236,6 +239,7 @@ export const make = Effect.gen(function* BrowserImportMake() {
             cookieDatabasePath: databasePath,
             keychainService: definition.keychainService,
             keychainAccount: definition.keychainAccount,
+            linuxSecretApplication: definition.linuxSecretApplication,
             platform,
           });
 
