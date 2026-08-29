@@ -608,7 +608,7 @@ describe("isSourceRunning for Firefox", () => {
 
 describe("Windows user-data directories", () => {
   it.effect("does not support any Chromium fork on win32", () =>
-    Effect.gen(function* () {
+    Effect.sync(() => {
       // No Chromium fork lists win32 anymore: since Chrome 127 their cookies
       // are App-Bound Encrypted, so nothing can import them. Omitting the
       // platform is what makes `unavailableReason` report `unsupportedPlatform`,
