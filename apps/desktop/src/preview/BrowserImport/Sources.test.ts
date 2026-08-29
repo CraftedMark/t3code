@@ -14,7 +14,6 @@ import {
   BROWSER_IMPORT_SOURCES,
   chromiumProcessIsAlive,
   chromiumSingletonLockIsHeld,
-  cookieDatabasePath,
   isSourceInstalled,
   isSourceRunning,
   listSourceProfiles,
