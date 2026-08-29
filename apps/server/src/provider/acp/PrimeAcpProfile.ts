@@ -55,7 +55,10 @@ export const PRIME_ACP_PROFILE: AcpAgentProfile<PrimeAcpSettings> = {
   clientCapabilities: ACP_AGENT_DEFAULT_CLIENT_CAPABILITIES,
   buildSpawnInput: buildPrimeAcpSpawnInput,
   modelStrategy: { kind: "spawnArgs" },
-  versionArgs: ["--version"],
+  versionCommand: (settings) => ({
+    command: settings.binaryPath.trim() || PRIME_DEFAULT_BINARY,
+    args: ["--version"],
+  }),
   discoverModels: (settings, environment) => discoverPrimeModels(settings, environment),
   resumeSupport: "none",
 };

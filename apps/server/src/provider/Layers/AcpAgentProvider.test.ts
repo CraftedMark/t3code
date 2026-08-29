@@ -16,6 +16,7 @@ import {
   buildInitialAcpAgentProviderSnapshot,
   checkAcpAgentProviderStatus,
   discoverPiModelsViaAcp,
+  discoverPrimeModels,
   parsePrimeModelListTable,
   primeModelsFromTable,
 } from "./AcpAgentProvider.ts";
@@ -99,7 +100,10 @@ function makeTestProfile(
       ...(environment ? { env: environment } : {}),
     }),
     modelStrategy: { kind: "configOption", configId: "model" },
-    versionArgs: ["--version"],
+    versionCommand: (settings) => ({
+      command: settings.binaryPath || "test-agent",
+      args: ["--version"],
+    }),
     discoverModels: () => Effect.succeed([]),
     resumeSupport: "acpLoadSession",
     ...overrides,
@@ -176,6 +180,26 @@ describe("primeModelsFromTable", () => {
     const plainModel = models.find((model) => model.slug === "lmstudio/llama-3.2-1b-instruct");
     expect(plainModel?.capabilities?.optionDescriptors).toEqual([]);
   });
+});
+
+it.layer(NodeServices.layer)("discoverPrimeModels", (it) => {
+  it.effect("reads the model catalog from stderr", () =>
+    Effect.gen(function* () {
+      const binaryPath = yield* writeExecutable("prime-agent-stderr-models-", [
+        "#!/bin/sh",
+        'printf "%s\\n" "' + PRIME_MODEL_LIST_FIXTURE.replaceAll("\n", '" "') + '" >&2',
+      ]);
+
+      const models = yield* discoverPrimeModels({
+        enabled: true,
+        binaryPath,
+        customModels: [],
+      });
+
+      expect(models).toHaveLength(6);
+      expect(models[0]?.slug).toBe("anthropic/claude-fable-5");
+    }),
+  );
 });
 
 it.layer(NodeServices.layer)("discoverPiModelsViaAcp", (it) => {
@@ -291,6 +315,45 @@ it.layer(NodeServices.layer)("checkAcpAgentProviderStatus", (it) => {
         "anthropic/claude-fable-5",
         "extra-model",
       ]);
+    }),
+  );
+
+  it.effect("uses the profile's dedicated version command", () =>
+    Effect.gen(function* () {
+      const versionBinaryPath = yield* writeExecutable("acp-agent-version-command-", [
+        "#!/bin/sh",
+        'printf "0.84.4\\n"',
+      ]);
+
+      const snapshot = yield* checkAcpAgentProviderStatus(
+        makeTestProfile({
+          versionCommand: (_settings, environment) => ({
+            command: environment?.PI_ACP_PI_COMMAND ?? "pi",
+            args: ["--version"],
+          }),
+          discoverModels: () =>
+            Effect.succeed([
+              {
+                slug: "anthropic/claude-fable-5",
+                name: "anthropic/claude-fable-5",
+                isCustom: false,
+                capabilities: { optionDescriptors: [] },
+              },
+            ]),
+        }),
+        {
+          enabled: true,
+          binaryPath: "/binary/that-must-not-be-used-for-version",
+          customModels: [],
+        },
+        {
+          PATH: "/usr/bin:/bin",
+          PI_ACP_PI_COMMAND: versionBinaryPath,
+        },
+      );
+
+      expect(snapshot.status).toBe("ready");
+      expect(snapshot.version).toBe("0.84.4");
     }),
   );
 

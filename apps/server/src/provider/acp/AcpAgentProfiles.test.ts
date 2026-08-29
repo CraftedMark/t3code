@@ -107,7 +107,26 @@ describe("profile metadata", () => {
     });
     expect(PI_ACP_PROFILE.authMethodId).toBe("pi_terminal_login");
     expect(PI_ACP_PROFILE.modelStrategy).toEqual({ kind: "configOption", configId: "model" });
-    expect(PI_ACP_PROFILE.versionArgs).toEqual(["--version"]);
+    expect(PI_ACP_PROFILE.versionCommand(PI_SETTINGS)).toEqual({
+      command: "pi",
+      args: ["--version"],
+    });
+    expect(
+      PI_ACP_PROFILE.versionCommand(PI_SETTINGS, {
+        PI_ACP_PI_COMMAND: "/custom/pi",
+      }),
+    ).toEqual({
+      command: "/custom/pi",
+      args: ["--version"],
+    });
+    expect(
+      PI_ACP_PROFILE.versionCommand(PI_SETTINGS, {
+        PI_ACP_PI_COMMAND: "  ",
+      }),
+    ).toEqual({
+      command: "  ",
+      args: ["--version"],
+    });
     expect(PI_ACP_PROFILE.resumeSupport).toBe("acpLoadSession");
     expect(PI_ACP_PROFILE.clientCapabilities).toEqual({
       fs: { readTextFile: true, writeTextFile: true },
@@ -121,7 +140,10 @@ describe("profile metadata", () => {
     expect(PRIME_ACP_PROFILE.presentation.requiresNewThreadForModelChange).toBe(true);
     expect(PRIME_ACP_PROFILE.authMethodId).toBeUndefined();
     expect(PRIME_ACP_PROFILE.modelStrategy).toEqual({ kind: "spawnArgs" });
-    expect(PRIME_ACP_PROFILE.versionArgs).toEqual(["--version"]);
+    expect(PRIME_ACP_PROFILE.versionCommand(PRIME_SETTINGS)).toEqual({
+      command: "prime-agent",
+      args: ["--version"],
+    });
     expect(PRIME_ACP_PROFILE.resumeSupport).toBe("none");
   });
 });

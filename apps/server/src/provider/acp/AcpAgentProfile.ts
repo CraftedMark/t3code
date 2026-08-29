@@ -54,8 +54,14 @@ export interface AcpAgentProfile<Settings extends AcpAgentBinarySettings> {
   ) => AcpSessionRuntime.AcpSpawnInput;
   /** Where the selected model is applied — session config option or spawn args. */
   readonly modelStrategy: AcpAgentModelStrategy;
-  /** Args appended to `binaryPath` for the installed/version probe. */
-  readonly versionArgs: ReadonlyArray<string>;
+  /** Command used for the installed/version probe. */
+  readonly versionCommand: (
+    settings: Settings,
+    environment?: NodeJS.ProcessEnv,
+  ) => {
+    readonly command: string;
+    readonly args: ReadonlyArray<string>;
+  };
   /** Model catalog lookup. Never fails: an unreachable agent yields `[]`. */
   readonly discoverModels: (
     settings: Settings,
