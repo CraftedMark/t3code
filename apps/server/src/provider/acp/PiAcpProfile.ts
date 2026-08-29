@@ -12,6 +12,7 @@ import type * as AcpSessionRuntime from "./AcpSessionRuntime.ts";
 export type PiAcpSettings = AcpAgentBinarySettings;
 
 export const PI_DEFAULT_BINARY = "pi-acp";
+export const PI_VERSION_BINARY = "pi";
 /** pi-acp accepts any auth method id; this is the one it advertises. */
 export const PI_AUTH_METHOD_ID = "pi_terminal_login";
 
@@ -42,7 +43,12 @@ export const PI_ACP_PROFILE: AcpAgentProfile<PiAcpSettings> = {
   authMethodId: PI_AUTH_METHOD_ID,
   buildSpawnInput: buildPiAcpSpawnInput,
   modelStrategy: { kind: "configOption", configId: "model" },
-  versionArgs: ["--version"],
+  // pi-acp ignores --version and waits for ACP input, so probe the Pi CLI it
+  // bridges to instead. Model discovery still verifies pi-acp itself.
+  versionCommand: (_settings, environment) => ({
+    command: environment?.PI_ACP_PI_COMMAND ?? PI_VERSION_BINARY,
+    args: ["--version"],
+  }),
   discoverModels: (settings, environment, cwd) =>
     discoverPiModelsViaAcp(PI_ACP_PROFILE, settings, environment, cwd),
   resumeSupport: "acpLoadSession",

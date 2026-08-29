@@ -111,11 +111,7 @@ const runVersionCommand = (
     );
   });
 
-/**
- * Both `pi-acp --version` and `prime-agent --version` print a bare version on
- * stdout. stderr is ignored on purpose: `prime-agent` also prints
- * `fatal: not a git repository` when the cwd is not a repo.
- */
+/** Returns the first non-empty stdout line from a CLI version command. */
 function firstLine(stdout: string): string | null {
   for (const line of stdout.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -146,9 +142,7 @@ export const checkAcpAgentProviderStatus = Effect.fn("checkAcpAgentProviderStatu
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
   const fallbackModels = fallbackModelsFrom(settings);
   const displayName = profile.presentation.displayName;
-  // Reuse the profile's spawn resolution so the probe hits the same binary a
-  // real session would, including its default when `binaryPath` is blank.
-  const binaryPath = profile.buildSpawnInput(settings, cwd, environment).command;
+  const versionCommand = profile.versionCommand(settings, environment);
 
   if (!settings.enabled) {
     return buildServerProvider({
@@ -166,10 +160,11 @@ export const checkAcpAgentProviderStatus = Effect.fn("checkAcpAgentProviderStatu
     });
   }
 
-  const versionResult = yield* runVersionCommand(binaryPath, profile.versionArgs, environment).pipe(
-    Effect.timeoutOption(VERSION_PROBE_TIMEOUT_MS),
-    Effect.result,
-  );
+  const versionResult = yield* runVersionCommand(
+    versionCommand.command,
+    versionCommand.args,
+    environment,
+  ).pipe(Effect.timeoutOption(VERSION_PROBE_TIMEOUT_MS), Effect.result);
 
   if (Result.isFailure(versionResult)) {
     const error = versionResult.failure;
@@ -188,7 +183,7 @@ export const checkAcpAgentProviderStatus = Effect.fn("checkAcpAgentProviderStatu
         status: "error",
         auth: { status: "unknown" },
         message: missing
-          ? `${displayName} (\`${binaryPath}\`) is not installed or not on PATH.`
+          ? `${displayName} (\`${versionCommand.command}\`) is not installed or not on PATH.`
           : `Failed to execute the ${displayName} CLI health check.`,
       },
     });
@@ -473,7 +468,10 @@ export const discoverPrimeModels = (
         shell: spawnCommand.shell,
       }),
     );
-    return primeModelsFromTable(parsePrimeModelListTable(output.stdout));
+    const stdoutModels = primeModelsFromTable(parsePrimeModelListTable(output.stdout));
+    return stdoutModels.length > 0
+      ? stdoutModels
+      : primeModelsFromTable(parsePrimeModelListTable(output.stderr));
   }).pipe(
     Effect.timeoutOption(MODEL_DISCOVERY_TIMEOUT_MS),
     Effect.map((option) => (Option.isNone(option) ? NO_MODELS : option.value)),
