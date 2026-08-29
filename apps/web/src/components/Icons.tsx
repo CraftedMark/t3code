@@ -699,3 +699,39 @@ export const PiAgentIcon: Icon = ({ className, ...props }) => (
     <path fill="#fff" d="M517.36 400H634.72V634.72H517.36Z" />
   </svg>
 );
+
+/** Compact monochrome mark for the Pi ACP provider. */
+export const PiIcon: Icon = ({ className, ...props }) => (
+  <svg
+    {...props}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M5 7h14" />
+    <path d="M8 7v10" />
+    <path d="M16 7v10" />
+    <path d="M16 17h3" />
+  </svg>
+);
+
+/** Compact monochrome mark for the Prime Agent ACP provider. */
+export const PrimeAgentIcon: Icon = ({ className, ...props }) => (
+  <svg
+    {...props}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M6 19V5h6a4 4 0 0 1 0 8H6" />
+    <path d="m14.5 16 1.5 3 1.5-3 3-1.5-3-1.5-1.5-3-1.5 3-3 1.5Z" />
+  </svg>
+);

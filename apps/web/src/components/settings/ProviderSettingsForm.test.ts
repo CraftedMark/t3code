@@ -10,6 +10,21 @@ import {
 } from "./ProviderSettingsForm";
 
 describe("ProviderSettingsForm helpers", () => {
+  it.each([
+    ["pi", "Pi", "Fork", ["binaryPath"]],
+    ["prime", "Prime Agent", "Fork", ["binaryPath", "defaultThinking"]],
+  ] as const)(
+    "registers the %s fork provider and its visible settings",
+    (driver, label, badgeLabel, expectedFields) => {
+      const definition = DRIVER_OPTION_BY_VALUE[ProviderDriverKind.make(driver)];
+
+      expect(definition).toMatchObject({ label, badgeLabel });
+      expect(deriveProviderSettingsFields(definition!).map((field) => field.key)).toEqual(
+        expectedFields,
+      );
+    },
+  );
+
   it("derives visible provider config fields from the client definition schema", () => {
     const codex = DRIVER_OPTION_BY_VALUE[ProviderDriverKind.make("codex")];
 

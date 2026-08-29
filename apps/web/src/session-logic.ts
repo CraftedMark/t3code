@@ -56,6 +56,8 @@ export const PROVIDER_OPTIONS: Array<{
     available: true,
     pickerSidebarBadge: "new",
   },
+  { value: ProviderDriverKind.make("pi"), label: "Pi", available: true },
+  { value: ProviderDriverKind.make("prime"), label: "Prime Agent", available: true },
 ];
 
 export type WorkLogToolLifecycleStatus =
