@@ -23,6 +23,7 @@ import {
   canCloseWizard,
   isRetryableReason,
   formatSkippedDomains,
+  fullDiskAccessRecheckStep,
   outcomeToStep,
   refreshedSourceProfileDirectory,
   refreshedSourceStep,
@@ -98,7 +99,7 @@ export function BrowserImportWizard({
   };
 
   const recheckAfterQuit = () => {
-    setStep({ step: "checking" });
+    setStep({ step: "checking", check: "browser" });
     void onRefreshSource()
       .then((refreshed) => {
         if (refreshed) {
@@ -113,13 +114,16 @@ export function BrowserImportWizard({
   };
 
   const recheckFullDiskAccess = () => {
+    setStep({ step: "checking", check: "fullDiskAccess" });
     void onRefreshSource()
       .then((refreshed) => {
         if (refreshed) {
           setSource(refreshed);
-          setSourceProfileDirectory(refreshed.profiles[0]?.directory ?? sourceProfileDirectory);
+          setSourceProfileDirectory((current) =>
+            refreshedSourceProfileDirectory(current, refreshed),
+          );
         }
-        setStep(refreshedSourceStep(refreshed));
+        setStep(fullDiskAccessRecheckStep(refreshed));
       })
       .catch(() => setStep({ step: "blocked", reason: "readFailed" }));
   };
@@ -135,11 +139,12 @@ export function BrowserImportWizard({
             onCancel={onClose}
             onOpenSettings={onOpenFullDiskAccessSettings}
             onGranted={step.resume === "import" ? runImport : recheckFullDiskAccess}
+            stillRequired={step.checked === true}
           />
         ) : step.step === "importing" ? (
           <ImportingStep />
         ) : step.step === "checking" ? (
-          <CheckingStep sourceName={source.name} />
+          <CheckingStep sourceName={source.name} check={step.check} />
         ) : step.step === "done" ? (
           <DoneStep
             {...step}
@@ -228,11 +233,13 @@ function FullDiskAccessStep({
   onCancel,
   onOpenSettings,
   onGranted,
+  stillRequired,
 }: {
   readonly source: BrowserImportSource;
   readonly onCancel: () => void;
   readonly onOpenSettings: () => void;
   readonly onGranted: () => void;
+  readonly stillRequired: boolean;
 }) {
   return (
     <>
@@ -244,6 +251,13 @@ function FullDiskAccessStep({
           done.
         </DialogDescription>
       </DialogHeader>
+      {stillRequired ? (
+        <DialogPanel>
+          <p role="status" className="text-sm text-muted-foreground">
+            Full Disk Access is still required. Turn it on, then check again.
+          </p>
+        </DialogPanel>
+      ) : null}
       <DialogFooter>
         <Button variant="outline" onClick={onCancel}>
           Cancel
@@ -392,16 +406,28 @@ function ImportingStep() {
   );
 }
 
-function CheckingStep({ sourceName }: { readonly sourceName: string }) {
+function CheckingStep({
+  sourceName,
+  check,
+}: {
+  readonly sourceName: string;
+  readonly check: "browser" | "fullDiskAccess";
+}) {
   return (
     <>
       <DialogHeader>
         <DialogTitle>Checking {sourceName}</DialogTitle>
-        <DialogDescription>Checking whether the browser has closed.</DialogDescription>
+        <DialogDescription>
+          {check === "fullDiskAccess"
+            ? "Checking Full Disk Access."
+            : "Checking whether the browser has closed."}
+        </DialogDescription>
       </DialogHeader>
       <DialogPanel className="flex items-center gap-3 py-6">
         <Spinner className="size-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Checking…</span>
+        <span className="text-sm text-muted-foreground">
+          {check === "fullDiskAccess" ? "Checking access…" : "Checking…"}
+        </span>
       </DialogPanel>
     </>
   );

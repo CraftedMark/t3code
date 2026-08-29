@@ -7,6 +7,7 @@ import {
   initialTargetSelection,
   isRetryableReason,
   formatSkippedDomains,
+  fullDiskAccessRecheckStep,
   outcomeToStep,
   refreshedSourceProfileDirectory,
   refreshedSourceStep,
@@ -139,6 +140,20 @@ describe("refreshedSourceStep", () => {
       step: "blocked",
       reason: "unknownSourceProfile",
     });
+  });
+});
+
+describe("fullDiskAccessRecheckStep", () => {
+  it("marks a still-denied access check for visible feedback", () => {
+    expect(fullDiskAccessRecheckStep(source({ unavailable: "needsFullDiskAccess" }))).toEqual({
+      step: "fullDiskAccess",
+      resume: "configure",
+      checked: true,
+    });
+  });
+
+  it("moves on once access reveals the source profiles", () => {
+    expect(fullDiskAccessRecheckStep(source())).toEqual({ step: "configure" });
   });
 });
 
