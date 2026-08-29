@@ -43,6 +43,13 @@ describe("initialWizardStep", () => {
     expect(initialWizardStep(source())).toEqual({ step: "configure" });
   });
 
+  it("asks for Full Disk Access before choosing an import target", () => {
+    expect(initialWizardStep(source({ unavailable: "needsFullDiskAccess" }))).toEqual({
+      step: "fullDiskAccess",
+      resume: "configure",
+    });
+  });
+
   it("blocks on a reason nothing local can fix", () => {
     expect(initialWizardStep(source({ unavailable: "unsupportedPlatform" }))).toEqual({
       step: "blocked",
@@ -98,6 +105,7 @@ describe("outcomeToStep", () => {
   it("routes a Full Disk Access refusal to its own screen", () => {
     expect(outcomeToStep({ kind: "blocked", reason: "needsFullDiskAccess" })).toEqual({
       step: "fullDiskAccess",
+      resume: "import",
     });
   });
 
