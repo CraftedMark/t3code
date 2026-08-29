@@ -266,11 +266,11 @@ export const make = Effect.gen(function* BrowserImportMake() {
             )
           : readChromiumCookies({
               cookieDatabasePath: databasePath,
-               keychainService: definition.keychainService,
-               keychainAccount: definition.keychainAccount,
-               linuxSecretApplication: definition.linuxSecretApplication,
-               platform,
-             });
+              keychainService: definition.keychainService,
+              keychainAccount: definition.keychainAccount,
+              linuxSecretApplication: definition.linuxSecretApplication,
+              platform,
+            });
 
     const result = yield* read.pipe(
       Effect.scoped,
