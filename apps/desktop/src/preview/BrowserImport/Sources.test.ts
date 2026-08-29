@@ -6,6 +6,7 @@ import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hos
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as Scope from "effect/Scope";
 import * as NodeSqlite from "node:sqlite";
 
@@ -17,6 +18,7 @@ import {
   cookieDatabaseCandidatePaths,
   isSourceInstalled,
   isSourceRunning,
+  isWindowsLockHeldError,
   listSourceProfiles,
   sourcePathContext,
 } from "./Sources.ts";
@@ -40,6 +42,23 @@ describe("Linux Chromium secret applications", () => {
         firefox: undefined,
       },
     );
+  });
+});
+
+const platformError = (reasonTag: string): PlatformError.PlatformError =>
+  ({ _tag: "PlatformError", reason: { _tag: reasonTag } }) as never;
+
+describe("Windows browser lock errors", () => {
+  it("treats sharing and lock violations reported as Busy as held", () => {
+    assert.isTrue(isWindowsLockHeldError(platformError("Busy")));
+  });
+
+  it("does not treat access denied as proof of an active lock", () => {
+    assert.isFalse(isWindowsLockHeldError(platformError("PermissionDenied")));
+  });
+
+  it("does not treat a missing lock file as held", () => {
+    assert.isFalse(isWindowsLockHeldError(platformError("NotFound")));
   });
 });
 

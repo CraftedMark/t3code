@@ -22,6 +22,7 @@ import { HostProcessEnvironment, HostProcessPlatform } from "@t3tools/shared/hos
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as NodeOS from "node:os";
@@ -344,6 +345,9 @@ const targetExists = Effect.fnUntraced(function* (path: string) {
     Effect.orElseSucceed(() => false),
   );
 });
+/** Windows sharing and lock violations are translated by libuv to `Busy`. */
+export const isWindowsLockHeldError = (error: PlatformError.PlatformError): boolean =>
+  error.reason._tag === "Busy";
 
 /**
  * Whether a lock file is actually held by a running process. On macOS and
@@ -355,16 +359,13 @@ const targetExists = Effect.fnUntraced(function* (path: string) {
  */
 const isLockHeld = Effect.fnUntraced(function* (lockPath: string, platform: NodeJS.Platform) {
   if (platform !== "win32") return yield* entryExists(lockPath);
-  // A lock held with no sharing denies the write access we need, surfacing as
-  // `Busy` or `PermissionDenied`; anything else (missing file, permissions we
-  // cannot read) just means no active browser holds it.
+  // A lock held with no sharing denies the write access we need as `Busy`.
+  // Permission failures are distinct: they do not prove a browser owns the
+  // lock, so they must not hide the source as running.
   const fileSystem = yield* FileSystem.FileSystem;
   return yield* fileSystem.open(lockPath, { flag: "r+" }).pipe(
     Effect.as(false),
-    Effect.catchIf(
-      (error) => error.reason._tag === "Busy" || error.reason._tag === "PermissionDenied",
-      () => Effect.succeed(true),
-    ),
+    Effect.catchIf(isWindowsLockHeldError, () => Effect.succeed(true)),
     Effect.orElseSucceed(() => false),
     Effect.scoped,
   );
