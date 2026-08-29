@@ -190,13 +190,15 @@ export const make = Effect.gen(function* BrowserImportMake() {
       return yield* new BrowserImportFailedError({ sourceId: definition.id, reason: blocked });
     }
 
-    // macOS attributes the Keychain prompt and the resulting ACL grant to the
-    // executable that asks, so record which one that was — in a packaged build
-    // it is the signed app, in dev whatever binary hosts the main process.
-    yield* Effect.logInfo("Reading browser cookie key from the keychain", {
-      sourceId: definition.id,
-      executablePath,
-    });
+    if (platform === "darwin" && definition.engine === "chromium") {
+      // macOS attributes the Keychain prompt and the resulting ACL grant to the
+      // executable that asks, so record which one that was — in a packaged build
+      // it is the signed app, in dev whatever binary hosts the main process.
+      yield* Effect.logInfo("Reading browser cookie key from the keychain", {
+        sourceId: definition.id,
+        executablePath,
+      });
+    }
 
     // The profile directory arrives over IPC, so it is only honoured when the
     // source itself reported it. Forwarding it unchecked would let `..`
