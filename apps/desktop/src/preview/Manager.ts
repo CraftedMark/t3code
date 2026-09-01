@@ -30,6 +30,7 @@ import type {
   PreviewAutomationTypeInput,
   PreviewAutomationWaitForInput,
 } from "@t3tools/contracts";
+import { isPreviewEmptyDocumentUrl } from "@t3tools/contracts";
 import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import { normalizePreviewUrl } from "@t3tools/shared/preview";
 import { BrowserWindow, type Session, clipboard, nativeImage, shell, webContents } from "electron";
@@ -1441,7 +1442,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const computeNavStatus = (wc: Electron.WebContents): PreviewNavStatus => {
     const url = wc.getURL();
     const title = wc.getTitle();
-    if (url === "" || url === "about:blank") return { kind: "Idle" };
+    if (isPreviewEmptyDocumentUrl(url)) return { kind: "Idle" };
     if (wc.isLoading()) return { kind: "Loading", url, title };
     return { kind: "Success", url, title };
   };

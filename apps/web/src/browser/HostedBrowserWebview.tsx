@@ -1,6 +1,10 @@
 "use client";
 
-import type { PreviewViewportSetting, ScopedThreadRef } from "@t3tools/contracts";
+import {
+  PREVIEW_EMPTY_DOCUMENT_URL,
+  type PreviewViewportSetting,
+  type ScopedThreadRef,
+} from "@t3tools/contracts";
 import { useShallow } from "zustand/react/shallow";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -54,7 +58,7 @@ export function HostedBrowserWebview(props: {
   const { threadRef, tabId, runtimeTabId, initialUrl, viewport, pictureInPicture, zoomFactor } =
     props;
   const config = usePreviewWebviewConfig(threadRef.environmentId);
-  const [initialSrc] = useState(() => initialUrl ?? "about:blank");
+  const [initialSrc] = useState(() => initialUrl ?? PREVIEW_EMPTY_DOCUMENT_URL);
   const tabLeaseRef = useRef<AcquiredDesktopTab | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const webviewRef = useRef<ElectronWebview | null>(null);

@@ -14,6 +14,17 @@ import { NonNegativeInt, PositiveInt, ThreadId, TrimmedNonEmptyString } from "./
 export const PREVIEW_URL_MAX_LENGTH = 2_048;
 export const CONFIGURED_LOCAL_SERVER_URLS_MAX_ITEMS = 32;
 
+const PREVIEW_EMPTY_DOCUMENT_HTML =
+  '<!doctype html><html><head><meta charset="utf-8"><title></title></head><body></body></html>';
+
+/** Standards-mode replacement for `about:blank` in an idle preview webview. */
+export const PREVIEW_EMPTY_DOCUMENT_URL = `data:text/html;charset=utf-8,${encodeURIComponent(PREVIEW_EMPTY_DOCUMENT_HTML)}`;
+
+/** Legacy blank URLs remain idle so existing webviews do not surface as navigations. */
+export function isPreviewEmptyDocumentUrl(url: string): boolean {
+  return url === "" || url === "about:blank" || url === PREVIEW_EMPTY_DOCUMENT_URL;
+}
+
 const Url = TrimmedNonEmptyString.check(Schema.isMaxLength(PREVIEW_URL_MAX_LENGTH));
 
 export const ConfiguredLocalServerUrls = Schema.Array(Url).check(
