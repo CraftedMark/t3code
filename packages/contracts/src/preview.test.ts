@@ -5,6 +5,8 @@ import {
   ConfiguredLocalServerUrls,
   CONFIGURED_LOCAL_SERVER_URLS_MAX_ITEMS,
   DiscoveredLocalServer,
+  isPreviewEmptyDocumentUrl,
+  PREVIEW_EMPTY_DOCUMENT_URL,
   PREVIEW_URL_MAX_LENGTH,
   PreviewEvent,
   PreviewNavStatus,
@@ -32,6 +34,18 @@ const decodeResizeResult = Schema.decodeUnknownSync(PreviewAutomationResizeResul
 const decodeAutomationHost = Schema.decodeUnknownSync(PreviewAutomationHost);
 const decodeAutomationError = Schema.decodeUnknownSync(PreviewAutomationError);
 const decodeAutomationStatus = Schema.decodeUnknownSync(PreviewAutomationStatus);
+
+describe("preview empty document", () => {
+  it("uses a standards-mode HTML document while retaining legacy idle URLs", () => {
+    const encodedHtml = PREVIEW_EMPTY_DOCUMENT_URL.split(",", 2)[1];
+
+    expect(decodeURIComponent(encodedHtml ?? "").toLowerCase()).toMatch(/^<!doctype html>/);
+    expect(isPreviewEmptyDocumentUrl(PREVIEW_EMPTY_DOCUMENT_URL)).toBe(true);
+    expect(isPreviewEmptyDocumentUrl("about:blank")).toBe(true);
+    expect(isPreviewEmptyDocumentUrl("")).toBe(true);
+    expect(isPreviewEmptyDocumentUrl("https://example.com/")).toBe(false);
+  });
+});
 
 describe("PreviewAutomationOpenInput", () => {
   it("accepts the inline preview visibility flag", () => {
