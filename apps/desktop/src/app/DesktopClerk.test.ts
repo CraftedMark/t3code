@@ -1,7 +1,10 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import type * as Electron from "electron";
 import { beforeEach, vi } from "vite-plus/test";
 
 const { createClerkBridgeMock, storageAdapter, storageMock } = vi.hoisted(() => ({
@@ -29,10 +32,16 @@ import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as DesktopClerk from "./DesktopClerk.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 
-const makeDesktopClerkLayer = (isDevelopment = true, events: string[] = []) => {
+const makeDesktopClerkLayer = (
+  isDevelopment = true,
+  events: string[] = [],
+  platform: NodeJS.Platform = "linux",
+  ownsSingleInstanceLock = true,
+) => {
   const environment = DesktopEnvironment.DesktopEnvironment.of({
     stateDir: "/tmp/t3-state",
     isDevelopment,
+    platform,
     appDataDirectory: "/tmp/app-data",
     userDataDirName: isDevelopment ? "t3code-dev" : "t3code",
     legacyUserDataDirName: isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)",
@@ -40,6 +49,13 @@ const makeDesktopClerkLayer = (isDevelopment = true, events: string[] = []) => {
   } as unknown as DesktopEnvironment.DesktopEnvironment["Service"]);
 
   const electronApp = {
+    requestSingleInstanceLock: Effect.sync(() => {
+      events.push("requestSingleInstanceLock");
+      return ownsSingleInstanceLock;
+    }),
+    quit: Effect.sync(() => {
+      events.push("quit");
+    }),
     setPath: (name: string, value: string) =>
       Effect.sync(() => {
         events.push(`setPath:${name}:${value}`);
@@ -105,6 +121,73 @@ describe("DesktopClerk", () => {
     });
   });
 
+  it.effect("acquires the macOS lock for the resolved userData before creating the bridge", () => {
+    const events: string[] = [];
+    const cleanup = vi.fn();
+    storageMock.mockReturnValue(storageAdapter);
+    createClerkBridgeMock.mockImplementation(() => {
+      events.push("createClerkBridge");
+      return { cleanup, isPrimaryInstance: true };
+    });
+
+    return Effect.gen(function* () {
+      yield* Effect.scoped(Layer.build(makeDesktopClerkLayer(true, events, "darwin")));
+
+      assert.deepEqual(events, [
+        "setPath:userData:/tmp/app-data/t3code-dev",
+        "requestSingleInstanceLock",
+        "createClerkBridge",
+      ]);
+      assert.equal(cleanup.mock.calls.length, 1);
+    });
+  });
+
+  it.effect("quits a secondary macOS instance before the bridge or downstream layers start", () => {
+    const events: string[] = [];
+    storageMock.mockReturnValue(storageAdapter);
+    createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
+    const downstreamLayer = Layer.effectDiscard(
+      Effect.gen(function* () {
+        yield* DesktopClerk.DesktopClerk;
+        events.push("startBackend");
+      }),
+    ).pipe(Layer.provide(makeDesktopClerkLayer(true, events, "darwin", false)));
+
+    return Effect.gen(function* () {
+      const exit = yield* Effect.exit(Effect.scoped(Layer.build(downstreamLayer)));
+
+      assert.isTrue(Exit.hasInterrupts(exit));
+      assert.deepEqual(events, [
+        "setPath:userData:/tmp/app-data/t3code-dev",
+        "requestSingleInstanceLock",
+        "quit",
+      ]);
+      assert.equal(storageMock.mock.calls.length, 0);
+      assert.equal(createClerkBridgeMock.mock.calls.length, 0);
+    });
+  });
+
+  it.effect.each(["win32", "linux"] as const)(
+    "leaves single-instance locking to Clerk on %s",
+    (platform) => {
+      const events: string[] = [];
+      storageMock.mockReturnValue(storageAdapter);
+      createClerkBridgeMock.mockImplementation(() => {
+        events.push("createClerkBridge");
+        return { cleanup: vi.fn(), isPrimaryInstance: true };
+      });
+
+      return Effect.gen(function* () {
+        yield* Effect.scoped(Layer.build(makeDesktopClerkLayer(true, events, platform, false)));
+
+        assert.deepEqual(events, [
+          "setPath:userData:/tmp/app-data/t3code-dev",
+          "createClerkBridge",
+        ]);
+      });
+    },
+  );
+
   it.effect("preserves bridge initialization failures", () => {
     const cause = new Error("bridge initialization failed");
     storageMock.mockReturnValue(storageAdapter);
@@ -153,23 +236,39 @@ describe("DesktopClerk", () => {
     });
   });
 
-  it.effect("registers the second-instance handler in the primary instance", () => {
+  it.effect("reveals the current window when a second instance opens", () => {
     storageMock.mockReturnValue(storageAdapter);
     createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
     const quit = vi.fn();
     const registeredEvents: string[] = [];
+    const listeners: Array<() => void> = [];
     const electronApp = {
       quit: Effect.sync(quit),
-      on: (eventName: string) =>
+      on: (eventName: string, listener: () => void) =>
         Effect.sync(() => {
           registeredEvents.push(eventName);
+          listeners.push(listener);
         }),
     } as unknown as ElectronApp.ElectronApp["Service"];
-    const electronWindow = {} as ElectronWindow.ElectronWindow["Service"];
 
     return Effect.gen(function* () {
+      const mainWindow = { id: 42 } as Electron.BrowserWindow;
+      const revealed = yield* Deferred.make<Electron.BrowserWindow>();
+      const electronWindow = {
+        currentMainOrFirst: Effect.succeed(Option.some(mainWindow)),
+        reveal: (window: Electron.BrowserWindow) => Deferred.succeed(revealed, window),
+      } as unknown as ElectronWindow.ElectronWindow["Service"];
       const clerk = yield* DesktopClerk.DesktopClerk;
-      const exit = yield* Effect.exit(Effect.scoped(clerk.configure));
+      const exit = yield* Effect.exit(
+        Effect.scoped(
+          Effect.gen(function* () {
+            yield* clerk.configure;
+            assert.equal(listeners.length, 1);
+            listeners[0]!();
+            assert.strictEqual(yield* Deferred.await(revealed), mainWindow);
+          }),
+        ).pipe(Effect.provideService(ElectronWindow.ElectronWindow, electronWindow)),
+      );
 
       assert.isTrue(Exit.isSuccess(exit));
       assert.equal(quit.mock.calls.length, 0);
@@ -177,7 +276,6 @@ describe("DesktopClerk", () => {
     }).pipe(
       Effect.provide(makeDesktopClerkLayer()),
       Effect.provideService(ElectronApp.ElectronApp, electronApp),
-      Effect.provideService(ElectronWindow.ElectronWindow, electronWindow),
     );
   });
 
