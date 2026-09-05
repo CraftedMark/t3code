@@ -88,13 +88,22 @@ export const make = Effect.gen(function* () {
   const electronApp = yield* ElectronApp.ElectronApp;
 
   // Electron scopes the single-instance lock to the userData directory and
-  // creates that directory when the lock is acquired. The SDK bridge takes
-  // the lock at creation, so userData must already point at the real
+  // creates that directory when the lock is acquired. Both our macOS guard
+  // and the SDK bridge on Windows/Linux need userData to point at the real
   // directory here — under the default productName-derived path, acquiring
   // the lock would create "T3 Code (Alpha)" and make the legacy-install
   // detection in resolveUserDataPath match on fresh installs.
   const userDataPath = yield* DesktopAppIdentity.resolveUserDataPath;
   yield* electronApp.setPath("userData", userDataPath);
+
+  // Clerk skips the lock on macOS, where command-line/dev launches can bypass
+  // Finder's single-instance handling. Stop before creating any runtime layers.
+  if (environment.platform === "darwin" && !(yield* electronApp.requestSingleInstanceLock)) {
+    // Exit synchronously: an interrupt racing app.quit() exits with 130, which
+    // the development launcher treats as a crash and restarts indefinitely.
+    yield* electronApp.exit(0);
+    return yield* Effect.interrupt;
+  }
 
   const bridge = yield* Effect.acquireRelease(
     Effect.try({
@@ -125,8 +134,8 @@ export const make = Effect.gen(function* () {
       const context = yield* Effect.context<ElectronWindow.ElectronWindow>();
       const runPromise = Effect.runPromiseWith(context);
 
-      // The SDK bridge holds Electron's single-instance lock (acquired at
-      // bridge creation) so OAuth deep-link callbacks on Windows/Linux are
+      // On Windows/Linux the SDK bridge holds Electron's single-instance lock
+      // (acquired at bridge creation) so OAuth deep-link callbacks are
       // forwarded to the running app. In a secondary instance the bridge has
       // already begun quitting the app; app.quit() is asynchronous, so stop
       // bootstrap here before whenReady can fire.

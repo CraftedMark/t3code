@@ -49,13 +49,17 @@ const makeDesktopClerkLayer = (
   } as unknown as DesktopEnvironment.DesktopEnvironment["Service"]);
 
   const electronApp = {
+    quit: Effect.sync(() => {
+      events.push("quit");
+    }),
     requestSingleInstanceLock: Effect.sync(() => {
       events.push("requestSingleInstanceLock");
       return ownsSingleInstanceLock;
     }),
-    quit: Effect.sync(() => {
-      events.push("quit");
-    }),
+    exit: (code: number) =>
+      Effect.sync(() => {
+        events.push(`exit:${code}`);
+      }),
     setPath: (name: string, value: string) =>
       Effect.sync(() => {
         events.push(`setPath:${name}:${value}`);
@@ -142,30 +146,33 @@ describe("DesktopClerk", () => {
     });
   });
 
-  it.effect("quits a secondary macOS instance before the bridge or downstream layers start", () => {
-    const events: string[] = [];
-    storageMock.mockReturnValue(storageAdapter);
-    createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
-    const downstreamLayer = Layer.effectDiscard(
-      Effect.gen(function* () {
-        yield* DesktopClerk.DesktopClerk;
-        events.push("startBackend");
-      }),
-    ).pipe(Layer.provide(makeDesktopClerkLayer(true, events, "darwin", false)));
+  it.effect(
+    "exits a secondary macOS instance successfully before the bridge or downstream layers start",
+    () => {
+      const events: string[] = [];
+      storageMock.mockReturnValue(storageAdapter);
+      createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
+      const downstreamLayer = Layer.effectDiscard(
+        Effect.gen(function* () {
+          yield* DesktopClerk.DesktopClerk;
+          events.push("startBackend");
+        }),
+      ).pipe(Layer.provide(makeDesktopClerkLayer(true, events, "darwin", false)));
 
-    return Effect.gen(function* () {
-      const exit = yield* Effect.exit(Effect.scoped(Layer.build(downstreamLayer)));
+      return Effect.gen(function* () {
+        const exit = yield* Effect.exit(Effect.scoped(Layer.build(downstreamLayer)));
 
-      assert.isTrue(Exit.hasInterrupts(exit));
-      assert.deepEqual(events, [
-        "setPath:userData:/tmp/app-data/t3code-dev",
-        "requestSingleInstanceLock",
-        "quit",
-      ]);
-      assert.equal(storageMock.mock.calls.length, 0);
-      assert.equal(createClerkBridgeMock.mock.calls.length, 0);
-    });
-  });
+        assert.isTrue(Exit.hasInterrupts(exit));
+        assert.deepEqual(events, [
+          "setPath:userData:/tmp/app-data/t3code-dev",
+          "requestSingleInstanceLock",
+          "exit:0",
+        ]);
+        assert.equal(storageMock.mock.calls.length, 0);
+        assert.equal(createClerkBridgeMock.mock.calls.length, 0);
+      });
+    },
+  );
 
   it.effect.each(["win32", "linux"] as const)(
     "leaves single-instance locking to Clerk on %s",

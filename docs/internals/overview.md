@@ -134,6 +134,16 @@ provider conversation. The storage contract is `VcsCheckpointOps` in
 
 ## Startup
 
+The desktop resolves Electron's `userData` directory before acquiring its
+single-instance lock. `DesktopClerk` acquires the lock directly on macOS because
+Clerk only manages it on Windows/Linux; command-line and dev launches on macOS
+can bypass Finder's single-instance handling. A rejected macOS launch exits with
+code zero before the Clerk bridge or backend runtime starts, so the dev launcher
+does not mistake a duplicate for a crash and restart it.
+The primary instance handles `second-instance` by revealing its existing window.
+The lock follows Electron's `userData` profile, not the server port or project
+directory; development and production retain their separate profiles.
+
 [`serverRuntimeStartup.ts`][startup] runs a fixed lifecycle: start keybindings, settings, and
 reactors; publish welcome; signal command readiness (logged as `Accepting commands`); wait for the
 HTTP listener via `markHttpListening`; publish ready; fork the heartbeat; then either print headless
