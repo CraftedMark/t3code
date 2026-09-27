@@ -1,4 +1,9 @@
-import type { ModelSelection, ProviderDriverKind, ServerProviderModel } from "@t3tools/contracts";
+import type {
+  CustomModelSetting,
+  ModelSelection,
+  ProviderDriverKind,
+  ServerProviderModel,
+} from "@t3tools/contracts";
 import type * as Crypto from "effect/Crypto";
 import type * as Effect from "effect/Effect";
 import type * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
@@ -15,7 +20,7 @@ import type * as AcpSessionRuntime from "./AcpSessionRuntime.ts";
 export interface AcpAgentBinarySettings {
   readonly enabled: boolean;
   readonly binaryPath: string;
-  readonly customModels: ReadonlyArray<string>;
+  readonly customModels: ReadonlyArray<CustomModelSetting>;
 }
 
 /**

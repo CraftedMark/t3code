@@ -29,8 +29,8 @@ import {
 import type { ServerProviderDraft } from "../providerSnapshot.ts";
 import { mergeProviderInstanceEnvironment } from "../ProviderInstanceEnvironment.ts";
 import {
+  makeCachedProviderMaintenanceResolution,
   makeManualOnlyProviderMaintenanceCapabilities,
-  makeStaticProviderMaintenanceResolver,
   resolveProviderMaintenanceCapabilitiesEffect,
 } from "../providerMaintenance.ts";
 import {
@@ -56,12 +56,15 @@ export function makeAcpAgentDriver<Settings extends AcpAgentBinarySettings>(inpu
   readonly defaultConfig: () => Settings;
 }): ProviderDriver<Settings, AcpAgentDriverEnv> {
   const { profile } = input;
-  const update = makeStaticProviderMaintenanceResolver(
-    makeManualOnlyProviderMaintenanceCapabilities({
-      provider: profile.driverKind,
-      packageName: null,
-    }),
-  );
+  const update = {
+    resolve: () =>
+      Effect.succeed(
+        makeManualOnlyProviderMaintenanceCapabilities({
+          provider: profile.driverKind,
+          packageName: null,
+        }),
+      ),
+  };
   const stampIdentity =
     (identity: {
       readonly instanceId: ProviderInstance["instanceId"];
@@ -91,6 +94,8 @@ export function makeAcpAgentDriver<Settings extends AcpAgentBinarySettings>(inpu
         const crypto = yield* Crypto.Crypto;
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
         const httpClient = yield* HttpClient.HttpClient;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
         const serverSettings = yield* ServerSettingsService;
         const { cwd } = yield* ServerConfig;
         yield* ProviderEventLoggers;
@@ -106,12 +111,15 @@ export function makeAcpAgentDriver<Settings extends AcpAgentBinarySettings>(inpu
           continuationGroupKey: continuationIdentity.continuationKey,
         });
         const effectiveConfig = { ...config, enabled } satisfies Settings;
-        const maintenanceCapabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(
-          update,
-          {
+        const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
+          resolveProviderMaintenanceCapabilitiesEffect(update, {
             binaryPath: effectiveConfig.binaryPath,
             env: processEnv,
-          },
+          }).pipe(
+            Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+            Effect.provideService(FileSystem.FileSystem, fileSystem),
+            Effect.provideService(Path.Path, path),
+          ),
         );
         const adapter = yield* makeAcpAgentAdapter(profile, effectiveConfig, {
           environment: processEnv,
@@ -137,7 +145,7 @@ export function makeAcpAgentDriver<Settings extends AcpAgentBinarySettings>(inpu
           serverSettings,
         );
         const snapshot = yield* makeManagedServerProvider<ProviderSnapshotSettings<Settings>>({
-          maintenanceCapabilities,
+          resolveMaintenance,
           getSettings: snapshotSettings.getSettings,
           streamSettings: snapshotSettings.streamSettings,
           haveSettingsChanged: haveProviderSnapshotSettingsChanged,
@@ -147,13 +155,17 @@ export function makeAcpAgentDriver<Settings extends AcpAgentBinarySettings>(inpu
             ),
           checkProvider,
           enrichSnapshot: ({ settings, snapshot: currentSnapshot, publishSnapshot }) =>
-            enrichAcpAgentSnapshot({
-              snapshot: currentSnapshot,
-              maintenanceCapabilities,
-              enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
-              publishSnapshot,
-              httpClient,
-            }),
+            resolveMaintenance().pipe(
+              Effect.flatMap((maintenanceCapabilities) =>
+                enrichAcpAgentSnapshot({
+                  snapshot: currentSnapshot,
+                  maintenanceCapabilities,
+                  enableProviderUpdateChecks: settings.enableProviderUpdateChecks,
+                  publishSnapshot,
+                  httpClient,
+                }),
+              ),
+            ),
         }).pipe(
           Effect.mapError(
             (cause) =>

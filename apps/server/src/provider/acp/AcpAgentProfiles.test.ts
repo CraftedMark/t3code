@@ -89,10 +89,13 @@ describe("buildPrimeAcpSpawnInput", () => {
     });
   });
 
-  it("falls back to `medium` when no default thinking level is configured", () => {
-    expect(
-      buildPrimeAcpSpawnInput({ ...PRIME_SETTINGS, defaultThinking: "  " }, "/work").args,
-    ).toEqual(["--mode", "acp", "--thinking", "medium"]);
+  it("uses the configured medium default when the selection omits reasoning effort", () => {
+    expect(buildPrimeAcpSpawnInput(PRIME_SETTINGS, "/work").args).toEqual([
+      "--mode",
+      "acp",
+      "--thinking",
+      "medium",
+    ]);
   });
 });
 

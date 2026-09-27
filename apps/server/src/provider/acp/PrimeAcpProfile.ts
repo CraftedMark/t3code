@@ -1,4 +1,8 @@
-import { type ModelSelection, ProviderDriverKind } from "@t3tools/contracts";
+import {
+  type ModelSelection,
+  type PrimeThinkingLevel,
+  ProviderDriverKind,
+} from "@t3tools/contracts";
 import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 
 import { discoverPrimeModels, PRIME_DEFAULT_THINKING_LEVEL } from "../Layers/AcpAgentProvider.ts";
@@ -15,7 +19,7 @@ import type * as AcpSessionRuntime from "./AcpSessionRuntime.ts";
  * session config option.
  */
 export interface PrimeAcpSettings extends AcpAgentBinarySettings {
-  readonly defaultThinking: string;
+  readonly defaultThinking: PrimeThinkingLevel;
 }
 
 export const PRIME_DEFAULT_BINARY = "prime-agent";
